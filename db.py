@@ -54,9 +54,13 @@ class User(db.Model):
     batch = db.Column(db.String(50), nullable=True)
     semester = db.Column(db.String(20), nullable=True)
     academic_year = db.Column(db.String(30), nullable=True)
+    age = db.Column(db.Integer, nullable=True)
+    enrollment_year = db.Column(db.String(10), nullable=True)
     
     faculty_id = db.Column(db.String(50), nullable=True)
     student_roll_no = db.Column(db.String(50), nullable=True)
+    is_approved = db.Column(db.Boolean, default=True, nullable=False)
+    account_claimed = db.Column(db.Boolean, default=True, nullable=False)
 
 class Project(db.Model):
     __tablename__ = 'projects'

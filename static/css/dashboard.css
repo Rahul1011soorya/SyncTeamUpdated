@@ -145,7 +145,7 @@ body {
 input[type="text"],
 input[type="password"],
 textarea,
-select.form-select {
+select {
     width: 100%;
     padding: 0.75rem 1rem;
     font-size: 0.95rem;
@@ -184,6 +184,7 @@ input:focus, textarea:focus, select:focus {
 .success-btn:hover { background-color: #047857; }
 
 .full-btn { width: 100%; display: flex; }
+.compact-btn { padding: 0.5rem 0.85rem; font-size: 0.82rem; }
 
 /* --- Authentication Layout Frame --- */
 .auth-container {
@@ -197,6 +198,7 @@ input:focus, textarea:focus, select:focus {
     width: 100%;
     max-width: 460px;
     box-shadow: var(--shadow-lg);
+
 }
 
 .toggle-auth-view {

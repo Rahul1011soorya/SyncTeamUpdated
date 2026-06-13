@@ -2,6 +2,7 @@ import os
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from db import db, Institution, CrossTenantAccessRequest, User, Project, GlobalSkill, ProjectSkillRequirement, StudentCompetency, Schedule, TeamAssignment, TeamProgress, DoubtTicket
 from datetime import datetime
+from sqlalchemy import inspect, or_, text
 
 app = Flask(__name__)
 app.secret_key = 'syncteam_academic_isolated_multi_tenant_secure_matrix_key'
@@ -16,6 +17,21 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+
+    # Lightweight compatibility patch for existing SQLite databases.
+    users_columns = [col["name"] for col in inspect(db.engine).get_columns("users")]
+    if "is_approved" not in users_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN is_approved BOOLEAN NOT NULL DEFAULT 1"))
+        db.session.commit()
+    if "age" not in users_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN age INTEGER"))
+        db.session.commit()
+    if "enrollment_year" not in users_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN enrollment_year VARCHAR(10)"))
+        db.session.commit()
+    if "account_claimed" not in users_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN account_claimed BOOLEAN NOT NULL DEFAULT 1"))
+        db.session.commit()
     
     # 1. Seed the Core Institution Workspace Domain
     inst_code = 'MBCET'
@@ -24,14 +40,14 @@ with app.app_context():
             institution_code=inst_code,
             name='Mar Baselios College of Engineering and Technology',
             address='Nalanchira, Thiruvananthapuram, Kerala',
-            roll_no_format='B24CS12XX',
-            faculty_id_format='MBCET-FAC-XX',
-            batch_format='01',
-            class_format='CS2',
+            roll_no_format='B24CS1235',
+            faculty_id_format='MBTCSA13',
+            batch_format='Class 1 / Class 2',
+            class_format='Department Class 1 / Department Class 2',
             academic_year_format='2024-2028',
             semester_format='S4',
-            subject_format='CSXXX',
-            stream_format='B.Tech'
+            subject_format='Department Subject',
+            stream_format='Computer Science / Electronics Communication / Electrical Engg / Civil Engg / Mechanical Engg'
         ))
         db.session.commit()
 
@@ -45,49 +61,100 @@ with app.app_context():
             real_name='MBCET Central Admin Office'
         ))
 
-    # 3. Seed Sample Faculty Members
-    sample_faculties = [
-        {"username": "faculty1", "password": "faculty@1", "name": "Prof. Afrin Shamnath", "sub": "Data Structures"},
-        {"username": "faculty2", "password": "faculty@2", "name": "Prof. Karthik Manoj", "sub": "Operating Systems"},
-        {"username": "faculty3", "password": "faculty@3", "name": "Prof. Arya R Nair", "sub": "Design Engineering"}
+    # 3. Seed MBCET-wide static enrollment data for the 2024-2028 batch.
+    department_catalog = [
+        {"code": "CS", "core": "1", "name": "COMPUTER SCIENCE", "subjects": ["DATA STRUCTURES", "DATABASE SYSTEMS", "WEB ENGINEERING", "AI FOUNDATIONS"]},
+        {"code": "EC", "core": "1", "name": "ELECTRONICS COMMUNICATION", "subjects": ["DIGITAL ELECTRONICS", "SIGNALS AND SYSTEMS", "VLSI DESIGN", "COMMUNICATION SYSTEMS"]},
+        {"code": "EE", "core": "1", "name": "ELECTRICAL ENGG", "subjects": ["POWER SYSTEMS", "ELECTRICAL MACHINES", "CONTROL SYSTEMS", "CIRCUIT THEORY"]},
+        {"code": "CE", "core": "1", "name": "CIVIL ENGG", "subjects": ["STRUCTURAL ANALYSIS", "SURVEYING", "GEOTECHNICAL ENGINEERING", "CONCRETE TECHNOLOGY"]},
+        {"code": "ME", "core": "1", "name": "MECHANICAL ENGG", "subjects": ["THERMODYNAMICS", "FLUID MECHANICS", "MACHINE DESIGN", "MANUFACTURING PROCESS"]}
     ]
-    
-    for fac in sample_faculties:
-        if not User.query.filter_by(username=fac["username"]).first():
-            db.session.add(User(
-                username=fac["username"],
-                password_hash=fac["password"],
-                role='faculty',
-                home_institution_code=inst_code,
-                real_name=fac["name"],
-                stream='B.Tech',
-                class_name='CS2',
-                batch='01',
-                semester='S4',
-                academic_year='2024-2028',
-                faculty_id=f"MBCET-FAC-{fac['username'][-1]}",
-                subject_specialization=fac["sub"]
-            ))
 
-    # 4. Programmatic Generation: Seed 30 Sequential Student Profiles
-    for i in range(1, 31):
-        username_handle = f"student{i}"
-        password_handle = f"student@{i}"
-        
-        if not User.query.filter_by(username=username_handle).first():
-            db.session.add(User(
-                username=username_handle,
-                password_hash=password_handle,
-                role='student',
-                home_institution_code=inst_code,
-                real_name=f"Roster Student Unit {i:02d}",
-                stream='B.Tech',
-                class_name='CS2',
-                batch='01',
-                semester='S4',
-                academic_year='2024-2028',
-                student_roll_no=f"B24CS12{i:02d}"
-            ))
+    first_names = [
+        "AARON", "ABHAY", "ADITHYA", "AKHIL", "AMAN", "AMRITHA", "ANAND", "ANJALI", "ANNA", "ARJUN",
+        "ARYA", "ATHIRA", "DEVIKA", "DIYA", "GOKUL", "HARITHA", "JEEVAN", "KARTHIK", "LAKSHMI", "MEERA",
+        "NANDANA", "NEHA", "NITHIN", "PRIYA", "RAHUL"
+    ]
+    last_names = [
+        "ALEX", "ANTONY", "BABU", "CHANDRAN", "DAS", "GEORGE", "JOSE", "KOSHY", "KUMAR", "MATHEW",
+        "MENON", "NAIR", "PAUL", "PILLAI", "RAJAN", "RAVI", "ROY", "SANKAR", "THOMAS", "VARMA"
+    ]
+
+    # Remove the earlier 30-student demo roster so the college list becomes the source of truth.
+    demo_students = User.query.filter(
+        User.role == 'student',
+        User.home_institution_code == inst_code,
+        User.real_name.like('Roster Student Unit%')
+    ).all()
+    for demo_student in demo_students:
+        db.session.delete(demo_student)
+
+    demo_faculties = User.query.filter(
+        User.role == 'faculty',
+        User.home_institution_code == inst_code,
+        User.username.in_(['faculty1', 'faculty2', 'faculty3'])
+    ).all()
+    for demo_faculty in demo_faculties:
+        db.session.delete(demo_faculty)
+
+    for dept_index, dept in enumerate(department_catalog):
+        for class_number in [1, 2]:
+            for roll_number in range(1, 51):
+                name_index = ((dept_index * 100) + ((class_number - 1) * 50) + roll_number - 1) % (len(first_names) * len(last_names))
+                first = first_names[name_index % len(first_names)]
+                last = last_names[(name_index // len(first_names)) % len(last_names)]
+                student_id = f"B24{dept['code']}{dept['core']}{class_number}{roll_number:02d}"
+
+                if not User.query.filter_by(student_roll_no=student_id).first():
+                    db.session.add(User(
+                        username=f"enroll_{student_id.lower()}",
+                        password_hash='UNCLAIMED',
+                        role='student',
+                        home_institution_code=inst_code,
+                        real_name=f"{first} {last}",
+                        stream=dept["name"],
+                        class_name=f"{dept['code']} CLASS {class_number}",
+                        batch=str(class_number),
+                        semester='S1',
+                        academic_year='2024-2028',
+                        age=18 + (roll_number % 3),
+                        enrollment_year='2024',
+                        student_roll_no=student_id,
+                        is_approved=True,
+                        account_claimed=False
+                    ))
+
+                enrolled_student = User.query.filter_by(student_roll_no=student_id, role='student').first()
+                if enrolled_student and (
+                    enrolled_student.username == student_id.lower()
+                    or enrolled_student.username.startswith('student')
+                    or enrolled_student.password_hash.startswith(student_id.lower())
+                ):
+                    enrolled_student.username = f"enroll_{student_id.lower()}"
+                    enrolled_student.password_hash = 'UNCLAIMED'
+                    enrolled_student.account_claimed = False
+
+        for teacher_index, subject in enumerate(dept["subjects"], start=1):
+            faculty_id = f"MBT{dept['code']}A{teacher_index + (dept_index * 10):02d}"
+            if not User.query.filter_by(faculty_id=faculty_id).first():
+                db.session.add(User(
+                    username=faculty_id.lower(),
+                    password_hash=f"{faculty_id.lower()}@2024",
+                    role='faculty',
+                    is_approved=True,
+                    home_institution_code=inst_code,
+                    real_name=f"PROF {first_names[(dept_index * 4 + teacher_index) % len(first_names)]} {last_names[dept_index]}",
+                    stream=dept["name"],
+                    class_name=f"{dept['code']} FACULTY",
+                    batch='ALL',
+                    semester='S1',
+                    academic_year='2024-2028',
+                    age=32 + teacher_index + dept_index,
+                    enrollment_year='2024',
+                    faculty_id=faculty_id,
+                    subject_specialization=subject,
+                    account_claimed=True
+                ))
             
     # Pre-populate global baseline dictionary components
     baseline_skills = ['Frontend Design', 'Backend Architecture', 'Database Optimization', 'Technical Documentation']
@@ -103,18 +170,17 @@ with app.app_context():
 
 @app.route('/')
 def role_selection():
-    institutions = Institution.query.all()
-    return render_template('role_selection.html', institutions=institutions)
+    return render_template('role_selection.html')
 
 @app.route('/portal/<role>')
 def login_page(role):
-    target_inst = request.args.get('inst_code', 'MBCET')
+    target_inst = 'MBCET'
     institution_profile = Institution.query.filter_by(institution_code=target_inst).first()
     return render_template('login.html', role=role, inst_code=target_inst, institution=institution_profile)
 
 @app.route('/signup/<role>')
 def signup_page(role):
-    target_inst = request.args.get('inst_code', 'MBCET')
+    target_inst = 'MBCET'
     institution_profile = Institution.query.filter_by(institution_code=target_inst).first()
     return render_template('signup.html', role=role, inst_code=target_inst, institution=institution_profile)
 
@@ -147,7 +213,17 @@ def admin_dashboard():
     if session.get('role') != 'admin': return redirect(url_for('role_selection'))
     user_count = User.query.filter_by(home_institution_code=session['institution_code']).count()
     project_count = Project.query.filter_by(institution_code=session['institution_code']).count()
-    return render_template('admin_dashboard.html', user_count=user_count, project_count=project_count)
+    pending_faculty = User.query.filter_by(
+        role='faculty',
+        home_institution_code=session['institution_code'],
+        is_approved=False
+    ).order_by(User.real_name.asc()).all()
+    return render_template(
+        'admin_dashboard.html',
+        user_count=user_count,
+        project_count=project_count,
+        pending_faculty=pending_faculty
+    )
 
 @app.route('/logout')
 def logout():
@@ -169,6 +245,18 @@ def api_login():
     user = User.query.filter_by(username=username, password_hash=password, role=role).first()
     if not user:
         return jsonify({"success": False, "message": "Authentication tokens rejected."})
+
+    if user.role == 'student' and not user.account_claimed:
+        return jsonify({
+            "success": False,
+            "message": "Student account is not registered yet. Please complete student registration first."
+        })
+
+    if user.role == 'faculty' and not user.is_approved:
+        return jsonify({
+            "success": False,
+            "message": "Faculty access is pending admin approval. Please contact your institution admin."
+        })
         
     if user.home_institution_code != active_inst_context:
         has_approval = CrossTenantAccessRequest.query.filter_by(
@@ -190,26 +278,74 @@ def api_login():
 @app.route('/api/register', methods=['POST'])
 def api_register():
     data = request.json
-    if User.query.filter_by(username=data.get('username')).first():
+    role = data.get('role')
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+
+    if not username or not password:
+        return jsonify({"success": False, "message": "Username and password are required."})
+
+    if role == 'student':
+        student_name = data.get('real_name', '').strip().upper()
+        student_id = data.get('student_roll_no', '').strip().upper()
+
+        if not student_name or not student_id:
+            return jsonify({"success": False, "message": "University record name and student ID are required."})
+
+        enrolled_student = User.query.filter_by(
+            role='student',
+            home_institution_code=data.get('inst_code'),
+            real_name=student_name,
+            student_roll_no=student_id
+        ).first()
+
+        if not enrolled_student:
+            return jsonify({"success": False, "message": "Enrollment match failed. Name and Student ID must match university records."})
+
+        if enrolled_student.account_claimed:
+            return jsonify({"success": False, "message": "This student enrollment has already created an account."})
+
+        if User.query.filter(User.username == username, User.id != enrolled_student.id).first():
+            return jsonify({"success": False, "message": "Username already taken."})
+
+        enrolled_student.username = username
+        enrolled_student.password_hash = password
+        enrolled_student.account_claimed = True
+        enrolled_student.is_approved = True
+        db.session.commit()
+        return jsonify({"success": True, "message": "Student account created from verified university enrollment records."})
+
+    if User.query.filter_by(username=username).first():
         return jsonify({"success": False, "message": "Username already taken."})
+
+    if role == 'faculty':
+        faculty_name = data.get('real_name', '').strip().upper()
+        teacher_id = data.get('faculty_id', '').strip().upper()
+
+        if not faculty_name or not teacher_id:
+            return jsonify({"success": False, "message": "Official record name and Teacher ID are required."})
         
     new_user = User(
-        username=data.get('username'),
-        password_hash=data.get('password'),
-        role=data.get('role'),
+        username=username,
+        password_hash=password,
+        role=role,
         home_institution_code=data.get('inst_code'),
-        real_name=data.get('real_name'),
+        real_name=data.get('real_name', '').strip().upper(),
         stream=data.get('stream'),
         class_name=data.get('class_name'),
         batch=data.get('batch'),
         semester=data.get('semester'),
         academic_year=data.get('academic_year'),
-        faculty_id=data.get('faculty_id') if data.get('role') == 'faculty' else None,
-        student_roll_no=data.get('student_roll_no') if data.get('role') == 'student' else None,
-        subject_specialization=data.get('subject') if data.get('role') == 'faculty' else None
+        faculty_id=data.get('faculty_id', '').strip().upper() if role == 'faculty' else None,
+        student_roll_no=None,
+        subject_specialization=data.get('subject') if role == 'faculty' else None,
+        is_approved=False if role == 'faculty' else True,
+        account_claimed=True
     )
     db.session.add(new_user)
     db.session.commit()
+    if role == 'faculty':
+        return jsonify({"success": True, "message": "Faculty registration submitted. You will be allowed after admin authentication."})
     return jsonify({"success": True, "message": "Registration approved under secure tenant isolation!"})
 
 @app.route('/api/admin/configure-formats', methods=['POST'])
@@ -228,11 +364,39 @@ def configure_formats():
         return jsonify({"success": True, "message": "Formatting templates locked!"})
     return jsonify({"success": False, "message": "Institution profile missing."})
 
+def apply_department_filter(query, department):
+    if not department:
+        return query
+
+    department_tokens = {
+        "Computer Science": ["Computer Science", "COMPUTER SCIENCE", "CS", "CSE"],
+        "Mechanical": ["Mechanical", "MECHANICAL ENGG", "ME", "MECH"],
+        "Civil": ["Civil", "CIVIL ENGG", "CE"],
+        "Electronics": ["Electronics", "ELECTRONICS COMMUNICATION", "EC", "ECE"],
+        "Electrical": ["Electrical", "ELECTRICAL ENGG", "EE"]
+    }.get(department, [department])
+
+    filters = []
+    for token in department_tokens:
+        filters.append(User.stream.ilike(f"%{token}%"))
+        filters.append(User.class_name.ilike(f"%{token}%"))
+        filters.append(User.subject_specialization.ilike(f"%{token}%"))
+    return query.filter(or_(*filters))
+
+def apply_section_filter(query, section):
+    if section == "Section 1":
+        return query.filter(or_(User.batch == "01", User.batch == "1", User.class_name.ilike("%1")))
+    if section == "Section 2":
+        return query.filter(or_(User.batch == "02", User.batch == "2", User.class_name.ilike("%2")))
+    return query
+
 @app.route('/api/reports/discover-students', methods=['GET'])
 def discover_students():
     if session.get('role') not in ['admin', 'faculty']: return jsonify({"error": "Unauthorized"}), 403
     query = User.query.filter_by(role='student', home_institution_code=session['institution_code'])
     
+    query = apply_department_filter(query, request.args.get('department'))
+    query = apply_section_filter(query, request.args.get('section'))
     if request.args.get('stream'): query = query.filter_by(stream=request.args.get('stream'))
     if request.args.get('class_name'): query = query.filter_by(class_name=request.args.get('class_name'))
     if request.args.get('batch'): query = query.filter_by(batch=request.args.get('batch'))
@@ -242,8 +406,53 @@ def discover_students():
     students = query.all()
     return jsonify([{
         "name": s.real_name, "roll_no": s.student_roll_no, "class": s.class_name,
-        "batch": s.batch, "semester": s.semester, "stream": s.stream, "year": s.academic_year
+        "batch": s.batch, "semester": s.semester, "stream": s.stream, "year": s.academic_year,
+        "age": s.age, "enrollment_year": s.enrollment_year
     } for s in students])
+
+@app.route('/api/admin/pending-faculty', methods=['GET'])
+def pending_faculty_directory():
+    if session.get('role') != 'admin': return jsonify({"error": "Forbidden"}), 403
+    faculty = User.query.filter_by(
+        role='faculty',
+        home_institution_code=session['institution_code'],
+        is_approved=False
+    ).order_by(User.real_name.asc()).all()
+    return jsonify([{
+        "id": f.id,
+        "name": f.real_name,
+        "faculty_id": f.faculty_id,
+        "department": f.stream,
+        "section": f.batch,
+        "subject": f.subject_specialization,
+        "year": f.academic_year
+    } for f in faculty])
+
+@app.route('/api/admin/approve-faculty/<int:user_id>', methods=['POST'])
+def approve_faculty_access(user_id):
+    if session.get('role') != 'admin': return jsonify({"error": "Forbidden"}), 403
+    faculty = User.query.filter_by(
+        id=user_id,
+        role='faculty',
+        home_institution_code=session['institution_code']
+    ).first_or_404()
+    faculty.is_approved = True
+    db.session.commit()
+    return jsonify({"success": True, "message": f"{faculty.real_name} can now access the faculty workspace."})
+
+@app.route('/api/admin/teacher-directory', methods=['GET'])
+def teacher_directory():
+    if session.get('role') != 'admin': return jsonify({"error": "Forbidden"}), 403
+    query = User.query.filter_by(role='faculty', home_institution_code=session['institution_code'])
+    query = apply_department_filter(query, request.args.get('department'))
+    faculty = query.order_by(User.real_name.asc()).all()
+    return jsonify([{
+        "name": f.real_name,
+        "faculty_id": f.faculty_id,
+        "department": f.stream,
+        "subject": f.subject_specialization,
+        "status": "Approved" if f.is_approved else "Pending"
+    } for f in faculty])
 
 @app.route('/api/project/deploy', methods=['POST'])
 def api_deploy_project():
@@ -407,52 +616,11 @@ def get_roster_report(project_id):
 
 @app.route('/register-institution')
 def register_institution_page():
-    return render_template('register_institution.html')
+    return redirect(url_for('role_selection'))
 
 @app.route('/api/institution/register', methods=['POST'])
 def api_register_institution():
-    data = request.json
-    code = data.get('code', '').strip().upper()
-    name = data.get('name', '').strip()
-    address = data.get('address', '').strip()
-    admin_user = data.get('admin_username', '').strip()
-    admin_pass = data.get('admin_password', '').strip()
-
-    if not code or not name or not admin_user or not admin_pass:
-        return jsonify({"success": False, "message": "All database fields are mandatory."})
-
-    if Institution.query.filter_by(institution_code=code).first():
-        return jsonify({"success": False, "message": "This institution code is already taken."})
-        
-    if User.query.filter_by(username=admin_user).first():
-        return jsonify({"success": False, "message": "Admin username already registered globally."})
-
-    # Initialize New Isolated Tenancy Entry Row
-    new_inst = Institution(
-        institution_code=code,
-        name=name,
-        address=address,
-        roll_no_format='FORMAT-YY-XXXX',
-        faculty_id_format='FAC-XX-XXXX',
-        batch_format='Batch XX',
-        class_format='DIV-X',
-        academic_year_format='202X-202X',
-        semester_format='SX'
-    )
-    db.session.add(new_inst)
-    
-    # Bind Initializing Super Admin Entity to this Specific Tenant Code
-    new_admin = User(
-        username=admin_user,
-        password_hash=admin_pass,
-        role='admin',
-        home_institution_code=code,
-        real_name=f"{name} Admin Node Office"
-    )
-    db.session.add(new_admin)
-    db.session.commit()
-
-    return jsonify({"success": True, "message": "New workspace successfully compiled and isolated!"})
+    return jsonify({"success": False, "message": "Institution onboarding is disabled for this MBCET-only workspace."}), 403
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -39,24 +39,29 @@ function executeRegistration() {
     const signupRole = segmentedPath[segmentedPath.length - 1];
     const instCode = document.getElementById('active_inst_context').value;
     
+    const valueFor = (id) => {
+        const field = document.getElementById(id);
+        return field ? field.value.trim() : "";
+    };
+
     const payload = {
-        username: document.getElementById('reg_username').value.trim(),
-        password: document.getElementById('reg_password').value.trim(),
-        real_name: document.getElementById('reg_real_name').value.trim(),
-        stream: document.getElementById('reg_stream').value.trim(),
-        class_name: document.getElementById('reg_class').value.trim(),
-        batch: document.getElementById('reg_batch').value.trim(),
-        semester: document.getElementById('reg_semester').value.trim(),
-        academic_year: document.getElementById('reg_year').value.trim(),
+        username: valueFor('reg_username'),
+        password: valueFor('reg_password'),
+        real_name: valueFor('reg_real_name').toUpperCase(),
+        stream: valueFor('reg_stream'),
+        class_name: valueFor('reg_class'),
+        batch: valueFor('reg_batch'),
+        semester: valueFor('reg_semester'),
+        academic_year: valueFor('reg_year'),
         role: signupRole,
         inst_code: instCode
     };
 
     if (signupRole === 'faculty') {
-        payload.faculty_id = document.getElementById('reg_faculty_id').value.trim();
-        payload.subject = document.getElementById('reg_subject').value.trim();
+        payload.faculty_id = valueFor('reg_faculty_id').toUpperCase();
+        payload.subject = valueFor('reg_subject');
     } else {
-        payload.student_roll_no = document.getElementById('reg_roll_no').value.trim();
+        payload.student_roll_no = valueFor('reg_roll_no').toUpperCase();
     }
 
     fetch('/api/register', {
@@ -70,3 +75,11 @@ function executeRegistration() {
         if (data.success) window.location.href = `/portal/${signupRole}?inst_code=${instCode}`;
     });
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.caps-only').forEach(field => {
+        field.addEventListener('input', () => {
+            field.value = field.value.toUpperCase();
+        });
+    });
+});

@@ -4,7 +4,7 @@
 <div class="auth-container">
     <div class="panel auth-card" style="max-width: 440px; margin: 4rem auto;">
         <h2>{{ role.capitalize() }} Portal Access</h2>
-        <p style="font-size:0.85rem; color:var(--indigo-600); font-weight:700; margin-top:-1rem; margin-bottom:1.5rem;">
+        <p style="font-size:0.85rem; color:var(--indigo-600); font-weight:700; margin-top:0rem; margin-bottom:1.5rem;">
             Tenant Isolated Workspace: {{ institution.name if institution else inst_code }}
         </p>
         
@@ -18,11 +18,11 @@
         </div>
         
         <div class="input-set" style="margin-top: 1.25rem;">
-            <label for="password" style="text-transform: uppercase; font-size: 0.8rem; font-weight: 700; color: var(--slate-700);">Security Account Password:</label>
+            <label for="password" style="text-transform: uppercase; font-size: 0.8rem; font-weight: 700; color: var(--slate-700);">Account Password:</label>
             <input type="password" id="password" placeholder="••••••••" style="width:100%; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--slate-300);">
         </div>
         
-        <button class="btn primary-btn full-btn" style="width:100%; margin-top: 1.5rem; padding: 0.85rem;" onclick="executeAuthentication()">Authenticate Core Tokens</button>
+        <button class="btn primary-btn full-btn" style="width:100%; margin-top: 1.5rem; padding: 0.85rem;" onclick="executeAuthentication()">Sign In</button>
         
         {% if role != 'admin' %}
         <div class="toggle-auth-view" style="text-align: center; margin-top: 1.25rem; font-size: 0.875rem;">

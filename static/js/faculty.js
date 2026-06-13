@@ -1,12 +1,25 @@
 function discoverStudentsByAttributes() {
-    const stream = document.getElementById('filter_stream').value.trim();
-    const className = document.getElementById('filter_class').value.trim();
-    const batch = document.getElementById('filter_batch').value.trim();
-    const semester = document.getElementById('filter_semester').value.trim();
-    const year = document.getElementById('filter_year').value.trim();
+    const fieldValue = (id) => {
+        const field = document.getElementById(id);
+        return field ? field.value.trim() : "";
+    };
+
+    const stream = fieldValue('filter_stream');
+    const className = fieldValue('filter_class');
+    const batch = fieldValue('filter_batch');
+    const semester = fieldValue('filter_semester');
+    const year = fieldValue('filter_year');
+    const department = fieldValue('filter_department');
+    const section = fieldValue('filter_section');
 
     let queryParams = new URLSearchParams({
-        stream: stream, class_name: className, batch: batch, semester: semester, academic_year: year
+        stream: stream,
+        class_name: className,
+        batch: batch,
+        semester: semester,
+        academic_year: year,
+        department: department,
+        section: section
     });
 
     fetch(`/api/reports/discover-students?${queryParams.toString()}`)
@@ -16,7 +29,7 @@ function discoverStudentsByAttributes() {
         tableBody.innerHTML = "";
         
         if(students.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--slate-600);">No isolated records matched these filter criteria.</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--slate-600);">No isolated records matched these filter criteria.</td></tr>`;
             return;
         }
 
@@ -25,15 +38,72 @@ function discoverStudentsByAttributes() {
                 <tr>
                     <td><strong>${s.name}</strong></td>
                     <td><code>${s.roll_no}</code></td>
+                    <td>${s.age || '-'}</td>
+                    <td>${s.enrollment_year || '-'}</td>
                     <td>${s.stream}</td>
-                    <td>${s.class} [Batch ${s.batch}]</td>
-                    <td>${s.semester}</td>
+                    <td>${s.class} [Class ${s.batch}]</td>
                     <td>${s.year}</td>
                 </tr>
             `;
         });
     });
 }
+
+function approveFacultyAccess(userId) {
+    fetch(`/api/admin/approve-faculty/${userId}`, { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+        alert(data.message || 'Faculty access updated.');
+        if (data.success) {
+            const row = document.getElementById(`pending-faculty-${userId}`);
+            if (row) row.remove();
+
+            const pendingBody = document.getElementById('pending-faculty-rows');
+            if (pendingBody && pendingBody.children.length === 0) {
+                pendingBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--slate-600);">No faculty accounts are waiting for approval.</td></tr>`;
+            }
+            filterTeacherDirectory();
+        }
+    });
+}
+
+function filterTeacherDirectory() {
+    const departmentField = document.getElementById('teacher_filter_department');
+    const department = departmentField ? departmentField.value.trim() : "";
+    const queryParams = new URLSearchParams({ department });
+
+    fetch(`/api/admin/teacher-directory?${queryParams.toString()}`)
+    .then(res => res.json())
+    .then(teachers => {
+        const tableBody = document.getElementById('teacher-directory-rows');
+        if (!tableBody) return;
+
+        tableBody.innerHTML = "";
+        if (teachers.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--slate-600);">No teachers matched this department filter.</td></tr>`;
+            return;
+        }
+
+        teachers.forEach(t => {
+            const statusColor = t.status === 'Approved' ? 'var(--emerald-600)' : 'var(--rose-700)';
+            tableBody.innerHTML += `
+                <tr>
+                    <td><strong>${t.name}</strong></td>
+                    <td><code>${t.faculty_id || '-'}</code></td>
+                    <td>${t.department || '-'}</td>
+                    <td>${t.subject || '-'}</td>
+                    <td><strong style="color:${statusColor};">${t.status}</strong></td>
+                </tr>
+            `;
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('teacher-directory-rows')) {
+        filterTeacherDirectory();
+    }
+});
 
 function fetchComplianceTimelineLog(projectId) {
     const listArea = document.getElementById(`compliance-outstanding-log-${projectId}`);

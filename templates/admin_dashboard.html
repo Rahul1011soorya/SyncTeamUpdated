@@ -2,6 +2,40 @@
 
 {% block content %}
 <div class="admin-workspace-layout">
+    <div class="panel" style="border-top:4px solid var(--rose-600);">
+        <h2>Faculty Gatekeeper Approval Queue</h2>
+        <p class="panel-desc">New faculty accounts stay pending until this office grants workspace access.</p>
+
+        <table class="admin-data-table" style="width:100%;">
+            <thead>
+                <tr>
+                    <th>Faculty Name</th>
+                    <th>Faculty ID</th>
+                    <th>Department</th>
+                    <th>Subject</th>
+                    <th>Timeline</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="pending-faculty-rows">
+                {% if pending_faculty %}
+                    {% for faculty in pending_faculty %}
+                    <tr id="pending-faculty-{{ faculty.id }}">
+                        <td><strong>{{ faculty.real_name }}</strong></td>
+                        <td><code>{{ faculty.faculty_id }}</code></td>
+                        <td>{{ faculty.stream }}</td>
+                        <td>{{ faculty.subject_specialization }}</td>
+                        <td>{{ faculty.academic_year }}</td>
+                        <td><button class="btn success-btn compact-btn" onclick="approveFacultyAccess({{ faculty.id }})">Approve Access</button></td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="6" style="text-align:center; color:var(--slate-600);">No faculty accounts are waiting for approval.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
     <div class="panel" style="border-top: 4px solid var(--indigo-600);">
         <h2>Tenant Structural Modeling Engine</h2>
         <p class="panel-desc">Define structural character string format criteria constraints blueprints to act as structural guidance placeholders for registration workflows.</p>
@@ -43,24 +77,77 @@
     </div>
 
     <div class="panel" style="border-top:4px solid var(--emerald-600);">
-        <h2>Institutional Student Directory Discovery</h2>
-        <p class="panel-desc">Query active student user partitions matching institutional metrics properties fields.</p>
+        <h2>Student Classroom Filter Panel</h2>
+        <p class="panel-desc">Filter student records by active academic timeline, department, and classroom section.</p>
         
         <div class="filter-search-matrix-grid">
-            <div class="input-set"><label>Stream:</label><input type="text" id="filter_stream" placeholder="B.Tech"></div>
-            <div class="input-set"><label>Class:</label><input type="text" id="filter_class" placeholder="CS2"></div>
-            <div class="input-set"><label>Batch:</label><input type="text" id="filter_batch" placeholder="Batch 01"></div>
-            <div class="input-set"><label>Sem:</label><input type="text" id="filter_semester" placeholder="S4"></div>
-            <div class="input-set"><label>Year:</label><input type="text" id="filter_year" placeholder="2024-2028"></div>
-            <button class="btn success-btn" onclick="discoverStudentsByAttributes()">Query Matrix</button>
+            <div class="input-set">
+                <label>Academic Year</label>
+                <select id="filter_year">
+                    <option value="">All Active Timelines</option>
+                    <option value="2023-2027">2023-2027</option>
+                    <option value="2024-2028">2024-2028</option>
+                    <option value="2025-2029">2025-2029</option>
+                    <option value="2026-2030">2026-2030</option>
+                </select>
+            </div>
+            <div class="input-set">
+                <label>Department</label>
+                <select id="filter_department">
+                    <option value="">All Departments</option>
+                    <option value="Computer Science">Computer Science</option>
+                    <option value="Electrical">Electrical Engg</option>
+                    <option value="Mechanical">Mechanical</option>
+                    <option value="Civil">Civil</option>
+                    <option value="Electronics">Electronics</option>
+                </select>
+            </div>
+            <div class="input-set">
+                <label>Section</label>
+                <select id="filter_section">
+                    <option value="">All Sections</option>
+                    <option value="Section 1">Section 1</option>
+                    <option value="Section 2">Section 2</option>
+                </select>
+            </div>
+            <button class="btn success-btn" onclick="discoverStudentsByAttributes()">Filter Students</button>
         </div>
 
         <table class="admin-data-table" style="width:100%;">
             <thead>
-                <tr><th>Student Identity Name</th><th>Roll No Mapping Token</th><th>Stream</th><th>Class (Batch)</th><th>Timeline Horizon</th></tr>
+                <tr><th>Student Name</th><th>Unique Student ID</th><th>Age</th><th>Enrollment Year</th><th>Department</th><th>Class</th><th>Academic Timeline</th></tr>
             </thead>
             <tbody id="discovered-students-rows">
-                <tr><td colspan="5" style="text-align:center; color:var(--slate-600);">Adjust criteria inputs above and trigger 'Query Matrix' execution bounds.</td></tr>
+                <tr><td colspan="7" style="text-align:center; color:var(--slate-600);">Choose classroom filters above and run the student search.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="panel" style="border-top:4px solid var(--indigo-700);">
+        <h2>Teacher Directory</h2>
+        <p class="panel-desc">Filter faculty independently by department and review their access status.</p>
+        
+        <div class="filter-search-matrix-grid">
+            <div class="input-set">
+                <label>Department</label>
+                <select id="teacher_filter_department">
+                    <option value="">All Departments</option>
+                    <option value="Computer Science">Computer Science</option>
+                    <option value="Electrical">Electrical Engg</option>
+                    <option value="Mechanical">Mechanical</option>
+                    <option value="Civil">Civil</option>
+                    <option value="Electronics">Electronics</option>
+                </select>
+            </div>
+            <button class="btn primary-btn" onclick="filterTeacherDirectory()">Filter Teachers</button>
+        </div>
+
+        <table class="admin-data-table" style="width:100%;">
+            <thead>
+                <tr><th>Teacher Name</th><th>Faculty ID</th><th>Department</th><th>Subject</th><th>Status</th></tr>
+            </thead>
+            <tbody id="teacher-directory-rows">
+                <tr><td colspan="5" style="text-align:center; color:var(--slate-600);">Select a department or load all teachers.</td></tr>
             </tbody>
         </table>
     </div>
