@@ -63,7 +63,7 @@ SYNCTEAM
   
 * Understood the structural layout of relational database models and how to implement strict table isolation boundaries to keep separate college data sandboxes secure.
 
-  **Elias Simon**:
+**Elias Simon**:
 
 - Developed the Student Module, including the Student Dashboard and Student Project View interfaces, and integrated student-side functionalities with the Flask backend through `app.py`.
 
