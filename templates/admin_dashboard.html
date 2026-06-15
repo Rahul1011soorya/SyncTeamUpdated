@@ -238,6 +238,50 @@
             </tbody>
         </table>
     </div>
+    <div class="panel">
+    <h2>Contact Requests</h2>
+
+    <table class="admin-data-table" style="width:100%;">
+        <thead>
+            <tr>
+                <th>User Type</th>
+                <th>Name</th>
+                <th>Class / Department</th>
+                <th>ID</th>
+                <th>Subject</th>
+                <th>Message</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for req in contact_requests %}
+            <tr>
+                <td>{{ req.user_type }}</td>
+                <td>{{ req.name }}</td>
+                <td>{{ req.class_department }}</td> <td>{{ req.roll_faculty_id }}</td>  <td>{{ req.subject }}</td>
+                <td>{{ req.message }}</td>
+
+                <td>
+                    {% if req.status == 'Pending' %}
+                    <a href="/approve_contact/{{ req.id }}" class="btn success-btn">
+                        Approve
+                    </a>
+                    {% else %}
+                    Approved
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" style="text-align: center; color: #888; padding: 20px;">
+                    No contact requests found.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 </div>
 
 <script src="{{ url_for('static', filename='js/faculty.js') }}"></script>

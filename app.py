@@ -193,6 +193,14 @@ with app.app_context():
 def role_selection():
     return render_template('role_selection.html')
 
+@app.route('/about')
+def about():
+    return render_template('about.html')
+
+@app.route('/contact')
+def contact():
+    return render_template('contact.html')
+
 @app.route('/portal/<role>')
 def login_page(role):
     target_inst = 'MBCET'
