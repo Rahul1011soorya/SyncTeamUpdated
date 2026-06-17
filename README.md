@@ -11,6 +11,8 @@ The long-term goal of the project is to implement an intelligent team formation 
 
 - Role Selection Page
 - Login Page
+- contact page
+- about page
 - Signup Page
 - Student Dashboard
 - Student Project View Page
