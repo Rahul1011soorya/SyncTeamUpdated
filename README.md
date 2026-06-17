@@ -21,31 +21,33 @@ The long-term goal of the project is to implement an intelligent team formation 
 ## Project Structure
 
 ```text
-SYNCTEAM
+SYNCTEAM/
 │
-├── app.py
-├── db.py
-├── syncteam.db
+├── app.py                      
+├── db.py                       
+├── syncteam.db                 
+├── requirements.txt            
 │
-├── static
-│   ├── css
-│   │   └── dashboard.css
-│   │
-│   └── js
-│       ├── auth.js
-│       ├── faculty.js
-│       └── student.js
+├── static/                     
+│   ├── css/
+│   │   └── dashboard.css       
+│   └── js/
+│       ├── auth.js             
+│       ├── faculty.js          
+│       └── student.js         
 │
-└── templates
-    ├── base.html
-    ├── login.html
-    ├── signup.html
-    ├── role_selection.html
-    ├── faculty_dashboard.html
-    ├── faculty_create_project.html
-    ├── student_dashboard.html
-    ├── student_project_view.html
-    └── admin_dashboard.html
+└── templates/                  
+    ├── base.html               
+    ├── login.html              
+    ├── signup.html             
+    ├── role_selection.html     
+    ├── faculty_dashboard.html  
+    ├── faculty_create_project.html 
+    ├── faculty_project_detail.html 
+    ├── student_dashboard.html  
+    ├── student_project_view.html 
+    ├── contact.html           
+    └── admin_dashboard.html  
 ```
 ## What we did
 
