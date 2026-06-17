@@ -91,6 +91,9 @@ class ProjectFlashcard(db.Model):
     question = db.Column(db.Text, nullable=False)
     answer_guide = db.Column(db.Text, nullable=False)
     max_marks = db.Column(db.Integer, nullable=False, default=10)
+    is_mcq = db.Column(db.Boolean, default=True, nullable=False)
+    options = db.Column(db.Text, nullable=True)
+    correct_answer = db.Column(db.String(100), nullable=True)
 
 class StudentFlashcardAnswer(db.Model):
     __tablename__ = 'student_flashcard_answers'
@@ -173,5 +176,18 @@ class CommunicationMessage(db.Model):
     team_number = db.Column(db.Integer, nullable=True)
     channel_type = db.Column(db.String(20), nullable=False, default='private')
     body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ContactRequest(db.Model):
+    __tablename__ = 'contact_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    user_type = db.Column(db.String(20), nullable=False) # 'student' or 'faculty'
+    name = db.Column(db.String(100), nullable=False)
+    class_department = db.Column(db.String(100), nullable=False)
+    roll_faculty_id = db.Column(db.String(50), nullable=False)
+    subject = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default="Pending") # 'Pending' or 'Approved'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

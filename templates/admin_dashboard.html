@@ -259,6 +259,29 @@
             </tbody>
         </table>
     </div>
+    
+    <div class="panel" style="border-top:4px solid var(--indigo-500);">
+        <h2>Global Skills Directory</h2>
+        <p class="panel-desc">Manage the skills catalog available for institutional projects.</p>
+        
+        <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; text-align: left;">
+            <input type="text" id="admin_new_skill_name" placeholder="e.g. Cloud Computing" style="flex-grow: 1; padding: 0.65rem 0.85rem; border-radius: 6px; border: 1px solid var(--slate-300);">
+            <button class="btn primary-btn" onclick="adminAddGlobalSkill()">Add Skill</button>
+        </div>
+
+        <table class="admin-data-table" style="width:100%;">
+            <thead>
+                <tr>
+                    <th style="text-align: left;">Skill Name</th>
+                    <th style="width: 150px; text-align: left;">Action</th>
+                </tr>
+            </thead>
+            <tbody id="admin-global-skills-rows">
+                <tr><td colspan="2" style="text-align:center; color:var(--slate-600);">Loading skills catalog...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
     <div class="panel">
     <h2>Contact Requests</h2>
 
@@ -465,7 +488,68 @@ function showSystemErrorBanner(errorMessage) {
     document.body.insertAdjacentHTML('beforeend', errorHtml);
 }
 
+function adminLoadGlobalSkills() {
+    fetch('/api/admin/skills')
+    .then(res => res.json())
+    .then(skills => {
+        const rows = document.getElementById('admin-global-skills-rows');
+        if (!rows) return;
+        if (skills.length === 0) {
+            rows.innerHTML = `<tr><td colspan="2" style="text-align:center; color:var(--slate-600);">No skills configured in system directory.</td></tr>`;
+            return;
+        }
+        rows.innerHTML = skills.map(skill => `
+            <tr>
+                <td style="text-align: left;"><strong>${escapeHtml(skill.name)}</strong></td>
+                <td style="text-align: left;"><button class="btn danger-btn compact-btn" onclick="adminDeleteGlobalSkill(${skill.id})">Delete</button></td>
+            </tr>
+        `).join("");
+    });
+}
+
+function adminAddGlobalSkill() {
+    const input = document.getElementById('admin_new_skill_name');
+    const skillName = input.value.trim();
+    if (!skillName) return;
+
+    fetch('/api/admin/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill_name: skillName })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            input.value = "";
+            adminLoadGlobalSkills();
+        } else {
+            alert(data.message || "Failed to add skill.");
+        }
+    });
+}
+
+function adminDeleteGlobalSkill(skillId) {
+    if (!confirm("Are you sure you want to delete this skill?")) return;
+
+    fetch('/api/admin/skills', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill_id: skillId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            adminLoadGlobalSkills();
+        } else {
+            alert(data.message || "Failed to delete skill.");
+        }
+    });
+}
+
 // Call instantly on layout load to ensure starting elements match default 'student' selection bounds cleanly
-document.addEventListener("DOMContentLoaded", toggleFormFieldsByRole);
+document.addEventListener("DOMContentLoaded", () => {
+    toggleFormFieldsByRole();
+    adminLoadGlobalSkills();
+});
 </script>
 {% endblock %}

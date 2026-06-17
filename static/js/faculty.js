@@ -303,17 +303,102 @@ function removeCohortTarget(index) {
     renderSelectedCohorts();
 }
 
+function toggleMCQFields(selectElem) {
+    const row = selectElem.closest('.flashcard-row');
+    const mcqContainer = row.querySelector('.mcq-options-container');
+    const openGuide = row.querySelector('.open-answer-guide');
+    if (selectElem.value === 'mcq') {
+        mcqContainer.style.display = 'block';
+        openGuide.style.display = 'none';
+    } else {
+        mcqContainer.style.display = 'none';
+        openGuide.style.display = 'block';
+    }
+}
+
+function syncQuestionSkillsDropdowns() {
+    const checkedSkills = [...document.querySelectorAll('.skill-checkbox:checked')].map(cb => cb.value);
+    document.querySelectorAll('.q-skill-select').forEach(select => {
+        const currentVal = select.value;
+        select.innerHTML = checkedSkills.map(skill => `<option value="${escapeHtml(skill)}">${escapeHtml(skill)}</option>`).join("");
+        if (checkedSkills.includes(currentVal)) {
+            select.value = currentVal;
+        } else if (checkedSkills.length > 0) {
+            select.value = checkedSkills[0];
+        } else {
+            select.innerHTML = `<option value="General">General</option>`;
+        }
+    });
+}
+
 function addFlashcardRow() {
     const container = document.getElementById('flashcard-builder');
     if (!container) return;
     const index = container.children.length + 1;
+    
+    // Get all currently checked skills
+    const checkedSkills = [...document.querySelectorAll('.skill-checkbox:checked')].map(cb => cb.value);
+    let skillOptions = checkedSkills.map(skill => `<option value="${escapeHtml(skill)}">${escapeHtml(skill)}</option>`).join("");
+    if (!skillOptions) {
+        skillOptions = `<option value="General">General</option>`;
+    }
+    
     container.insertAdjacentHTML('beforeend', `
-        <div class="flashcard-row">
-            <div class="input-set"><label>Topic tag</label><input type="text" class="flash-topic" placeholder="Topic ${index}"></div>
-            <div class="input-set"><label>Question</label><textarea class="flash-question" rows="2"></textarea></div>
-            <div class="input-set"><label>Answer guide</label><textarea class="flash-guide" rows="2"></textarea></div>
-            <div class="input-set"><label>Max marks</label><input type="number" class="flash-marks" min="1" value="10"></div>
-            <button type="button" class="btn danger-btn" onclick="this.closest('.flashcard-row').remove()">Remove</button>
+        <div class="flashcard-row" style="background:#f8fafc; border:1px solid #cbd5e1; padding:1.5rem; border-radius:8px; margin-bottom:1.5rem; position:relative; text-align: left;">
+            <button type="button" class="btn danger-btn compact-btn" style="position:absolute; top:1rem; right:1rem;" onclick="this.closest('.flashcard-row').remove()">Remove</button>
+            
+            <div class="form-row" style="display:flex; gap:1rem; margin-bottom:1rem;">
+                <div class="input-set" style="flex: 1;">
+                    <label>Targeted Skill</label>
+                    <select class="flash-topic q-skill-select" style="width:100%; padding:0.4rem; border-radius:4px; border:1px solid #cbd5e1;">
+                        ${skillOptions}
+                    </select>
+                </div>
+                <div class="input-set" style="flex: 1;">
+                    <label>Question Type</label>
+                    <select class="flash-type" style="width:100%; padding:0.4rem; border-radius:4px; border:1px solid #cbd5e1;" onchange="toggleMCQFields(this)">
+                        <option value="mcq" selected>Multiple Choice (MCQ)</option>
+                        <option value="open">Open-ended / Text</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="input-set" style="margin-bottom:1rem;">
+                <label>Question Text</label>
+                <textarea class="flash-question" rows="2" style="width:100%; padding:0.5rem; border-radius:4px; border:1px solid #cbd5e1;" placeholder="e.g. Which of the following is a CSS framework?"></textarea>
+            </div>
+            
+            <div class="mcq-options-container" style="margin-bottom:1rem;">
+                <label style="font-weight: 700; display: block; margin-bottom: 0.5rem;">MCQ Options</label>
+                <div class="form-row" style="display:flex; gap:1rem; margin-bottom:0.5rem;">
+                    <div class="input-set" style="flex:1; margin-bottom:0;"><input type="text" class="mcq-opt mcq-opt-a" placeholder="Option A" style="width:100%; padding:0.4rem; border-radius:4px; border:1px solid #cbd5e1;"></div>
+                    <div class="input-set" style="flex:1; margin-bottom:0;"><input type="text" class="mcq-opt mcq-opt-b" placeholder="Option B" style="width:100%; padding:0.4rem; border-radius:4px; border:1px solid #cbd5e1;"></div>
+                </div>
+                <div class="form-row" style="display:flex; gap:1rem; margin-bottom:0.5rem;">
+                    <div class="input-set" style="flex:1; margin-bottom:0;"><input type="text" class="mcq-opt mcq-opt-c" placeholder="Option C" style="width:100%; padding:0.4rem; border-radius:4px; border:1px solid #cbd5e1;"></div>
+                    <div class="input-set" style="flex:1; margin-bottom:0;"><input type="text" class="mcq-opt mcq-opt-d" placeholder="Option D" style="width:100%; padding:0.4rem; border-radius:4px; border:1px solid #cbd5e1;"></div>
+                </div>
+                
+                <div class="input-set" style="margin-top:0.75rem;">
+                    <label>Correct Answer Option</label>
+                    <select class="flash-correct" style="width:150px; padding:0.4rem; border-radius:4px; border:1px solid #cbd5e1;">
+                        <option value="A">Option A</option>
+                        <option value="B">Option B</option>
+                        <option value="C">Option C</option>
+                        <option value="D">Option D</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="open-answer-guide" style="display:none; margin-bottom:1rem;">
+                <label>Evaluation Answer Guide</label>
+                <textarea class="flash-guide" rows="2" style="width:100%; padding:0.5rem; border-radius:4px; border:1px solid #cbd5e1;" placeholder="e.g. Look for mentions of flexbox or grid layouts."></textarea>
+            </div>
+            
+            <div class="input-set">
+                <label>Max Marks</label>
+                <input type="number" class="flash-marks" min="1" value="10" style="width:100px; padding:0.4rem; border-radius:4px; border:1px solid #cbd5e1;">
+            </div>
         </div>
     `);
 }
@@ -323,18 +408,33 @@ function injectCustomSkillToForm() {
     const skillName = input ? input.value.trim() : "";
     if (!skillName) return;
     const container = document.querySelector('.checkbox-matrix');
-    container.insertAdjacentHTML('beforeend', `<label class="matrix-cb-label"><input type="checkbox" class="skill-checkbox" value="${escapeHtml(skillName)}" checked> ${escapeHtml(skillName)}</label>`);
+    container.insertAdjacentHTML('beforeend', `<label class="matrix-cb-label"><input type="checkbox" class="skill-checkbox" value="${escapeHtml(skillName)}" checked onchange="syncQuestionSkillsDropdowns()"> ${escapeHtml(skillName)}</label>`);
     input.value = "";
+    syncQuestionSkillsDropdowns();
 }
 
 function compileAndPublishProject() {
     const selectedSkills = [...document.querySelectorAll('.skill-checkbox:checked')].map(cb => cb.value);
-    const flashcards = [...document.querySelectorAll('.flashcard-row')].map(row => ({
-        topic_tag: row.querySelector('.flash-topic').value.trim() || "General",
-        question: row.querySelector('.flash-question').value.trim(),
-        answer_guide: row.querySelector('.flash-guide').value.trim(),
-        max_marks: row.querySelector('.flash-marks').value || 10
-    })).filter(card => card.question && card.answer_guide);
+    const flashcards = [...document.querySelectorAll('.flashcard-row')].map(row => {
+        const type = row.querySelector('.flash-type').value;
+        const isMcq = type === 'mcq';
+        const opts = [];
+        if (isMcq) {
+            opts.push(row.querySelector('.mcq-opt-a').value.trim());
+            opts.push(row.querySelector('.mcq-opt-b').value.trim());
+            opts.push(row.querySelector('.mcq-opt-c').value.trim());
+            opts.push(row.querySelector('.mcq-opt-d').value.trim());
+        }
+        return {
+            topic_tag: row.querySelector('.flash-topic').value || "General",
+            question: row.querySelector('.flash-question').value.trim(),
+            is_mcq: isMcq,
+            options: isMcq ? opts : null,
+            correct_answer: isMcq ? row.querySelector('.flash-correct').value : null,
+            answer_guide: isMcq ? "" : row.querySelector('.flash-guide').value.trim(),
+            max_marks: row.querySelector('.flash-marks').value || 10
+        };
+    }).filter(card => card.question);
 
     if (!fieldValue('p_name') || !fieldValue('p_desc') || !fieldValue('p_deadline') || selectedCohorts.length === 0) {
         notifySync("Fill the project title, brief, deadline, and at least one cohort.", "error");

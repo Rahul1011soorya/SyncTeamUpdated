@@ -14,22 +14,69 @@
     <input type="hidden" id="project-selector" value="{{ project.id }}">
 
     <div class="panel" id="flashcard-intake-card" style="border-top: 4px solid var(--indigo-600);">
-        <h2>Quiz Arena</h2>
-        <p class="panel-desc">Answer each flashcard. Faculty marks are saved against this project and used with your skill scores for team generation.</p>
+        <h2>Quiz Arena & Weekly Schedule</h2>
+        <p class="panel-desc">Complete the assessment quiz to evaluate your skill levels and map your availability. These are used to automatically form balanced teams.</p>
         {% if flashcards %}
             {% for card in flashcards %}
-            <div class="student-flashcard">
-                <div class="flashcard-topic">{{ card.topic_tag }} | {{ card.max_marks }} marks</div>
-                <h3>{{ card.question }}</h3>
-                <textarea class="student-flashcard-answer" data-flashcard-id="{{ card.id }}" rows="4" placeholder="Write your answer here.">{% if answer_map.get(card.id) %}{{ answer_map.get(card.id).answer_text }}{% endif %}</textarea>
-                {% if answer_map.get(card.id) and answer_map.get(card.id).marks_awarded is not none %}
-                <p class="marks-note">Marked: {{ answer_map.get(card.id).marks_awarded }} / {{ card.max_marks }}</p>
+                {% if card.is_mcq %}
+                    <div class="student-flashcard" style="background: var(--slate-50); border: 1px solid var(--slate-200); padding: 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; text-align: left;">
+                        <div class="flashcard-topic" style="background: var(--indigo-600); color: white; display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 700; margin-bottom: 0.75rem;">
+                            Skill Area: {{ card.topic_tag }} | {{ card.max_marks }} marks (MCQ)
+                        </div>
+                        <h3 style="margin: 0 0 0.75rem 0; font-size: 1.1rem; font-weight: 700; color: var(--slate-900);">{{ card.question }}</h3>
+                        
+                        <div class="mcq-options-stack" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            {% set opts = card.options.split(';') %}
+                            {% set saved_ans = answer_map.get(card.id).answer_text if answer_map.get(card.id) else '' %}
+                            
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 500; cursor: pointer; color: var(--slate-800);">
+                                <input type="radio" name="mcq-ans-{{ card.id }}" class="mcq-option-radio student-flashcard-answer" data-flashcard-id="{{ card.id }}" value="A" {% if saved_ans == 'A' %}checked{% endif %}>
+                                <span><strong>A:</strong> {{ opts[0] if opts|length > 0 else '' }}</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 500; cursor: pointer; color: var(--slate-800);">
+                                <input type="radio" name="mcq-ans-{{ card.id }}" class="mcq-option-radio student-flashcard-answer" data-flashcard-id="{{ card.id }}" value="B" {% if saved_ans == 'B' %}checked{% endif %}>
+                                <span><strong>B:</strong> {{ opts[1] if opts|length > 1 else '' }}</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 500; cursor: pointer; color: var(--slate-800);">
+                                <input type="radio" name="mcq-ans-{{ card.id }}" class="mcq-option-radio student-flashcard-answer" data-flashcard-id="{{ card.id }}" value="C" {% if saved_ans == 'C' %}checked{% endif %}>
+                                <span><strong>C:</strong> {{ opts[2] if opts|length > 2 else '' }}</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 500; cursor: pointer; color: var(--slate-800);">
+                                <input type="radio" name="mcq-ans-{{ card.id }}" class="mcq-option-radio student-flashcard-answer" data-flashcard-id="{{ card.id }}" value="D" {% if saved_ans == 'D' %}checked{% endif %}>
+                                <span><strong>D:</strong> {{ opts[3] if opts|length > 3 else '' }}</span>
+                            </label>
+                        </div>
+
+                        {% if answer_map.get(card.id) and answer_map.get(card.id).marks_awarded is not none %}
+                            <p style="margin: 0.75rem 0 0 0; font-size: 0.9rem; font-weight: 700; color: {% if answer_map.get(card.id).marks_awarded > 0 %}var(--emerald-600){% else %}var(--rose-600){% endif %};">
+                                Evaluated: {{ answer_map.get(card.id).marks_awarded }} / {{ card.max_marks }} marks
+                            </p>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="student-flashcard" style="background: var(--slate-50); border: 1px solid var(--slate-200); padding: 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; text-align: left;">
+                        <div class="flashcard-topic" style="background: var(--slate-600); color: white; display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 700; margin-bottom: 0.75rem;">
+                            Skill Area: {{ card.topic_tag }} | {{ card.max_marks }} marks (Text Question)
+                        </div>
+                        <h3 style="margin: 0 0 0.75rem 0; font-size: 1.1rem; font-weight: 700; color: var(--slate-900);">{{ card.question }}</h3>
+                        <textarea class="student-flashcard-answer" data-flashcard-id="{{ card.id }}" rows="3" style="width:100%; padding:0.5rem; border-radius:4px; border:1px solid var(--slate-300);" placeholder="Write your text answer here.">{% if answer_map.get(card.id) %}{{ answer_map.get(card.id).answer_text }}{% endif %}</textarea>
+
+                        {% if answer_map.get(card.id) and answer_map.get(card.id).marks_awarded is not none %}
+                            <p style="margin: 0.75rem 0 0 0; font-size: 0.9rem; font-weight: 700; color: var(--indigo-600);">
+                                Evaluated score: {{ answer_map.get(card.id).marks_awarded }} / {{ card.max_marks }} marks
+                            </p>
+                        {% endif %}
+                    </div>
                 {% endif %}
-            </div>
             {% endfor %}
-            <button class="btn primary-btn full-btn" onclick="dispatchFlashcardAnswers()">Save Quiz Answers</button>
+            
+            <h3 style="margin-top: 2rem; border-top: 1px solid var(--slate-200); padding-top: 1.5rem; text-align: left;">Weekly Temporal Synchronization Grid (24-Hour Block)</h3>
+            <p class="panel-desc">Click to highlight the hours you are available to work with team members during the week.</p>
+            <div class="schedule-matrix-grid" id="calendar-binary-grid" style="margin-bottom: 1.5rem;"></div>
+
+            <button class="btn success-btn full-btn" style="padding: 1rem; font-size: 1rem; font-weight: bold;" onclick="dispatchFlashcardAnswers()">Submit Quiz Answers & availability Matrix</button>
         {% else %}
-            <p class="muted-text">No flashcards are attached to this project.</p>
+            <p class="muted-text">No quiz questions are currently assigned to this project.</p>
         {% endif %}
     </div>
 
@@ -128,13 +175,29 @@
     {% endif %}
 
     <div class="panel" id="student-intake-card" style="border-top: 4px solid var(--emerald-600);">
-        <h2>Self-Assessment Evaluation Index</h2>
-        <div id="dynamic-sliders-stack" class="sliders-stack-layout"></div>
+        <h2>Evaluated Skill Levels Profile</h2>
+        <p class="panel-desc">These competency scores are automatically calculated based on your performance in the Quiz Arena.</p>
         
-        <h3 style="margin-top: 2.5rem; border-top: 1px solid var(--slate-100); padding-top: 1.5rem;">Weekly Temporal Synchronization Grid (24-Hour Block)</h3>
-        <div class="schedule-matrix-grid" id="calendar-binary-grid"></div>
-
-        <button class="btn success-btn full-btn" style="margin-top: 2rem; padding: 1rem;" onclick="dispatchStudentAssessment()">Lock Profile Parameters & Save Assessment</button>
+        <div class="skills-progress-stack" style="margin-top: 1.5rem;">
+            {% if student_competencies %}
+                {% for comp in student_competencies %}
+                <div class="skill-progress-bar-container" style="margin-bottom: 1.25rem; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 0.25rem; color: var(--slate-700);">
+                        <span>{{ comp.skill_name }}</span>
+                        <span>Level {{ comp.score }} / 10</span>
+                    </div>
+                    <div style="background: var(--slate-200); height: 10px; border-radius: 5px; overflow: hidden; width: 100%;">
+                        <div style="background: var(--emerald-500); height: 100%; width: {{ comp.score * 10 }}%; border-radius: 5px; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align: center; padding: 2rem 1rem; background: var(--slate-50); border: 1px dashed var(--slate-300); border-radius: 8px;">
+                    <p style="color: var(--slate-600); font-weight: 500; margin: 0;">No skill level data recorded yet.</p>
+                    <p style="color: var(--slate-500); font-size: 0.85rem; margin: 0.25rem 0 0 0;">Please take the quiz above to automatically calculate and save your skill levels.</p>
+                </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 

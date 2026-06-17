@@ -10,40 +10,9 @@ function notifySync(message, type = "success") {
     else alert(message);
 }
 
-// 1. FETCH CRITERIA AND ASSEMBLE INTERACTIVE SLIDERS
+// 1. CONSTRUCT WEEKLY SCHEDULE GRID
 function fetchDynamicProjectRequirements() {
-    const projectId = document.getElementById('project-selector').value;
-    const slidersStack = document.getElementById('dynamic-sliders-stack');
     const calendarGrid = document.getElementById('calendar-binary-grid');
-
-    if (!slidersStack) return; // Prevent execution if not on the project sheet view page
-
-    // Step A: Fetch and render skill competency capability bars
-    fetch(`/api/project/${projectId}/skills`)
-    .then(res => res.json())
-    .then(skills => {
-        slidersStack.innerHTML = "";
-        if (skills.length === 0) {
-            slidersStack.innerHTML = "<p class='muted-text'>No explicit capability criteria declared by faculty.</p>";
-            return;
-        }
-
-        skills.forEach(skill => {
-            slidersStack.innerHTML += `
-                <div class="slider-container-box" style="background: var(--slate-50); padding: 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; border: 1px solid var(--slate-200);">
-                    <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 0.95rem; color: var(--slate-800);">
-                        <span>${skill.name}</span>
-                        <span>Score: <strong id="score-display-${skill.id}" style="color: var(--indigo-600);">5</strong> / 10</span>
-                    </div>
-                    <input type="range" class="competency-slider" data-skill-id="${skill.id}" min="1" max="10" value="5" 
-                        style="width: 100%; margin-top: 0.75rem;" 
-                        oninput="document.getElementById('score-display-${skill.id}').innerText = this.value">
-                </div>
-            `;
-        });
-    });
-
-    // Step B: Construct the 24-Hour Clickable Visual Matrix Blocks
     if (calendarGrid) {
         calendarGrid.innerHTML = "";
         for (let hour = 0; hour < 24; hour++) {
@@ -74,20 +43,14 @@ function toggleScheduleCell(hour) {
 
 // 3. COMPILE DATA AND SUBMIT PERFORMANCE INTAKE SHEET
 function dispatchStudentAssessment() {
+    // Kept for backwards compatibility
     const projectId = document.getElementById('project-selector').value;
-    
-    const competenciesPayload = {};
-    document.querySelectorAll('.competency-slider').forEach(slider => {
-        const skillId = slider.getAttribute('data-skill-id');
-        competenciesPayload[skillId] = slider.value;
-    });
-
     fetch('/api/student/submit-assessment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             project_id: projectId,
-            competencies: competenciesPayload,
+            competencies: {},
             schedule: selectedScheduleBinaryArray
         })
     })
@@ -103,19 +66,32 @@ function dispatchStudentAssessment() {
 function dispatchFlashcardAnswers() {
     const projectId = document.getElementById('project-selector').value;
     const answers = {};
-    document.querySelectorAll('.student-flashcard-answer').forEach(field => {
+    
+    // Gather checked MCQ option radio inputs
+    document.querySelectorAll('.mcq-option-radio:checked').forEach(radio => {
+        answers[radio.getAttribute('data-flashcard-id')] = radio.value;
+    });
+
+    // Gather text answers from open questions textareas
+    document.querySelectorAll('textarea.student-flashcard-answer').forEach(field => {
         answers[field.getAttribute('data-flashcard-id')] = field.value.trim();
     });
 
     fetch('/api/student/submit-flashcards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: projectId, answers })
+        body: JSON.stringify({ 
+            project_id: projectId, 
+            answers: answers,
+            schedule: selectedScheduleBinaryArray
+        })
     })
     .then(res => res.json())
     .then(data => {
         notifySync(data.message, data.success ? "success" : "error");
-        if (data.success) window.location.reload();
+        if (data.success) {
+            window.location.reload();
+        }
     });
 }
 

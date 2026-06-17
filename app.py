@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-from db import db, Institution, CrossTenantAccessRequest, User, Project, ProjectCohortAssignment, ProjectFlashcard, StudentFlashcardAnswer, GlobalSkill, ProjectSkillRequirement, StudentCompetency, Schedule, TeamAssignment, TeamProgress, DoubtTicket, CommunicationMessage
+from db import db, Institution, CrossTenantAccessRequest, User, Project, ProjectCohortAssignment, ProjectFlashcard, StudentFlashcardAnswer, GlobalSkill, ProjectSkillRequirement, StudentCompetency, Schedule, TeamAssignment, TeamProgress, DoubtTicket, CommunicationMessage, ContactRequest
 from datetime import datetime
 from sqlalchemy import inspect, or_, and_, text
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -47,6 +47,17 @@ with app.app_context():
         db.session.commit()
     if "account_claimed" not in users_columns:
         db.session.execute(text("ALTER TABLE users ADD COLUMN account_claimed BOOLEAN NOT NULL DEFAULT 1"))
+        db.session.commit()
+
+    flashcards_columns = [col["name"] for col in inspect(db.engine).get_columns("project_flashcards")]
+    if "is_mcq" not in flashcards_columns:
+        db.session.execute(text("ALTER TABLE project_flashcards ADD COLUMN is_mcq BOOLEAN NOT NULL DEFAULT 1"))
+        db.session.commit()
+    if "options" not in flashcards_columns:
+        db.session.execute(text("ALTER TABLE project_flashcards ADD COLUMN options TEXT"))
+        db.session.commit()
+    if "correct_answer" not in flashcards_columns:
+        db.session.execute(text("ALTER TABLE project_flashcards ADD COLUMN correct_answer VARCHAR(100)"))
         db.session.commit()
     
     # 1. Seed the Core Institution Workspace Domain
@@ -312,6 +323,13 @@ def student_project_view(project_id):
                     "skills": ", ".join(better_skills) if better_skills else "Assessment Pending"
                 })
 
+    student_competencies = db.session.query(StudentCompetency.score, GlobalSkill.skill_name).join(
+        GlobalSkill, StudentCompetency.skill_id == GlobalSkill.id
+    ).filter(
+        StudentCompetency.user_id == session['user_id'],
+        StudentCompetency.project_id == project_id
+    ).all()
+
     return render_template(
         'student_project_view.html',
         project=project,
@@ -319,7 +337,8 @@ def student_project_view(project_id):
         answer_map=answer_map,
         team_assignment=team_assignment,
         team_progress=team_progress,
-        team_members=team_members_data # Injecting the structured cohort map directly
+        team_members=team_members_data,
+        student_competencies=student_competencies
     )
 
 @app.route('/admin/dashboard')
@@ -342,6 +361,8 @@ def admin_dashboard():
         is_approved=False
     ).order_by(User.real_name.asc()).all()
     
+    contact_requests = ContactRequest.query.order_by(ContactRequest.created_at.desc()).all()
+    
     return render_template(
         'admin_dashboard.html',
         user_count=user_count,
@@ -350,8 +371,74 @@ def admin_dashboard():
         faculty_count=faculty_count, # Passing variable cleanly to template execution
         team_count=team_count,
         message_count=message_count,
-        pending_faculty=pending_faculty
+        pending_faculty=pending_faculty,
+        contact_requests=contact_requests
     )
+
+@app.route('/api/contact/submit', methods=['POST'])
+def api_contact_submit():
+    data = request.json or {}
+    user_type = data.get('user_type')
+    name = data.get('name')
+    class_department = data.get('class_department')
+    roll_faculty_id = data.get('roll_faculty_id')
+    subject = data.get('subject')
+    message = data.get('message')
+
+    if not all([user_type, name, class_department, roll_faculty_id, subject, message]):
+        return jsonify({"success": False, "message": "All fields are required."}), 400
+
+    new_req = ContactRequest(
+        user_type=user_type,
+        name=name.upper(),
+        class_department=class_department.upper(),
+        roll_faculty_id=roll_faculty_id.upper(),
+        subject=subject,
+        message=message
+    )
+    db.session.add(new_req)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Your request has been saved to the support database."})
+
+@app.route('/approve_contact/<int:req_id>')
+def approve_contact(req_id):
+    if session.get('role') != 'admin': return redirect(url_for('role_selection'))
+    req = ContactRequest.query.get_or_404(req_id)
+    req.status = 'Approved'
+    db.session.commit()
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/api/admin/skills', methods=['GET', 'POST', 'DELETE'])
+def api_admin_skills():
+    if session.get('role') != 'admin': return jsonify({"error": "Forbidden"}), 403
+    if request.method == 'GET':
+        skills = GlobalSkill.query.all()
+        return jsonify([{"id": s.id, "name": s.skill_name} for s in skills])
+    
+    elif request.method == 'POST':
+        data = request.json or {}
+        skill_name = (data.get('skill_name') or '').strip()
+        if not skill_name:
+            return jsonify({"success": False, "message": "Skill name is required."}), 400
+        existing = GlobalSkill.query.filter_by(skill_name=skill_name).first()
+        if existing:
+            return jsonify({"success": False, "message": "Skill already exists."}), 400
+        new_skill = GlobalSkill(skill_name=skill_name)
+        db.session.add(new_skill)
+        db.session.commit()
+        return jsonify({"success": True, "message": f"Skill '{skill_name}' added successfully."})
+        
+    elif request.method == 'DELETE':
+        data = request.json or {}
+        skill_id = data.get('skill_id')
+        if not skill_id:
+            return jsonify({"success": False, "message": "Skill ID is required."}), 400
+        skill = GlobalSkill.query.get(skill_id)
+        if not skill:
+            return jsonify({"success": False, "message": "Skill not found."}), 404
+        db.session.delete(skill)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Skill deleted successfully."})
 
 @app.route('/logout')
 def logout():
@@ -813,14 +900,25 @@ def api_deploy_project():
 
     for card in data.get('flashcards', []):
         question = (card.get('question') or '').strip()
-        answer_guide = (card.get('answer_guide') or '').strip()
-        if question and answer_guide:
+        if question:
+            is_mcq = card.get('is_mcq', True)
+            if isinstance(is_mcq, str):
+                is_mcq = is_mcq.lower() == 'true'
+            options = card.get('options')
+            if isinstance(options, list):
+                options = ";".join(options)
+            elif options is None:
+                options = ""
+            
             db.session.add(ProjectFlashcard(
                 project_id=new_p.id,
                 topic_tag=(card.get('topic_tag') or 'General').strip(),
                 question=question,
-                answer_guide=answer_guide,
-                max_marks=max(1, int(card.get('max_marks') or 10))
+                answer_guide=(card.get('answer_guide') or '').strip(),
+                max_marks=max(1, int(card.get('max_marks') or 10)),
+                is_mcq=is_mcq,
+                options=options.strip(),
+                correct_answer=(card.get('correct_answer') or '').strip()
             ))
 
     db.session.commit()
@@ -867,28 +965,102 @@ def api_submit_flashcards():
     if session.get('role') != 'student': return jsonify({"error": "Forbidden"}), 403
     data = request.json
     project_id = int(data.get('project_id'))
-    if not student_can_access_project(session['user_id'], project_id):
+    student_id = session['user_id']
+    if not student_can_access_project(student_id, project_id):
         return jsonify({"success": False, "message": "This project is not assigned to your class."}), 403
 
-    for flashcard_id, answer_text in (data.get('answers') or {}).items():
+    answers = data.get('answers') or {}
+    schedule = data.get('schedule')
+
+    # Save answers
+    for flashcard_id, answer_text in answers.items():
         flashcard = ProjectFlashcard.query.filter_by(id=int(flashcard_id), project_id=project_id).first()
         if not flashcard:
             continue
+        
+        # Determine marks if MCQ
+        marks_awarded = None
+        if flashcard.is_mcq:
+            if answer_text.strip().upper() == (flashcard.correct_answer or '').strip().upper():
+                marks_awarded = flashcard.max_marks
+            else:
+                marks_awarded = 0
+
         answer = StudentFlashcardAnswer.query.filter_by(
             flashcard_id=flashcard.id,
-            student_id=session['user_id']
+            student_id=student_id
         ).first()
         if answer:
             answer.answer_text = answer_text.strip()
+            if marks_awarded is not None:
+                answer.marks_awarded = marks_awarded
         else:
             db.session.add(StudentFlashcardAnswer(
                 project_id=project_id,
                 flashcard_id=flashcard.id,
-                student_id=session['user_id'],
-                answer_text=answer_text.strip()
+                student_id=student_id,
+                answer_text=answer_text.strip(),
+                marks_awarded=marks_awarded
             ))
+            
+    # Save schedule if provided
+    if schedule:
+        schedule_string = ",".join(map(str, schedule))
+        existing_sched = Schedule.query.filter_by(user_id=student_id, project_id=project_id).first()
+        if existing_sched: 
+            existing_sched.availability_matrix = schedule_string
+        else: 
+            db.session.add(Schedule(user_id=student_id, project_id=project_id, availability_matrix=schedule_string))
+
+    # Evaluate student skills on the basis of quiz taken
+    required_skills = ProjectSkillRequirement.query.filter_by(project_id=project_id).all()
+    for req in required_skills:
+        skill_entity = GlobalSkill.query.get(req.skill_id)
+        if not skill_entity:
+            continue
+        
+        # Find all flashcards for this project with topic_tag matching the skill name
+        skill_name = skill_entity.skill_name.strip().lower()
+        flashcards_for_skill = ProjectFlashcard.query.filter(
+            ProjectFlashcard.project_id == project_id,
+            db.func.lower(ProjectFlashcard.topic_tag) == skill_name
+        ).all()
+        
+        if flashcards_for_skill:
+            total_max = sum(fc.max_marks for fc in flashcards_for_skill)
+            flashcard_ids = [fc.id for fc in flashcards_for_skill]
+            saved_answers = StudentFlashcardAnswer.query.filter(
+                StudentFlashcardAnswer.student_id == student_id,
+                StudentFlashcardAnswer.flashcard_id.in_(flashcard_ids)
+            ).all()
+            
+            total_awarded = sum(ans.marks_awarded or 0 for ans in saved_answers)
+            
+            if total_max > 0:
+                skill_score = int(round((total_awarded / total_max) * 10))
+                skill_score = max(1, min(10, skill_score))
+            else:
+                skill_score = 5
+        else:
+            skill_score = 5
+            
+        existing_comp = StudentCompetency.query.filter_by(
+            user_id=student_id,
+            project_id=project_id,
+            skill_id=req.skill_id
+        ).first()
+        if existing_comp:
+            existing_comp.score = skill_score
+        else:
+            db.session.add(StudentCompetency(
+                user_id=student_id,
+                project_id=project_id,
+                skill_id=req.skill_id,
+                score=skill_score
+            ))
+
     db.session.commit()
-    return jsonify({"success": True, "message": "Quiz answers saved."})
+    return jsonify({"success": True, "message": "Quiz submitted. Skill levels evaluated and saved!"})
 
 @app.route('/api/faculty/project/<int:project_id>/status-matrix')
 def faculty_status_matrix(project_id):
@@ -988,42 +1160,103 @@ def generate_teams(project_id):
     project = Project.query.get_or_404(project_id)
     if not team_generation_unlocked(project):
         return jsonify({"success": False, "message": "Team generation unlocks after the deadline passes or every assigned student completes the quiz."})
+    
+    students = assigned_student_query(project_id).all()
+    if not students:
+        return jsonify({"success": False, "message": "Matchmaking halted: No students assigned to cohorts."})
+
+    required_skills = ProjectSkillRequirement.query.filter_by(project_id=project_id).all()
+    skill_ids = [req.skill_id for req in required_skills]
+
+    # Load student competencies
+    competency_scores = {}
+    for student in students:
+        student_comp = {}
+        for skill_id in skill_ids:
+            comp = StudentCompetency.query.filter_by(user_id=student.id, project_id=project_id, skill_id=skill_id).first()
+            student_comp[skill_id] = comp.score if comp else 5 # Default fallback
+        competency_scores[student.id] = student_comp
+
+    # Calculate total weight (sum of scores of required skills + quiz marks total)
+    student_total_weight = {}
+    for student in students:
+        skill_sum = sum(competency_scores[student.id].values())
+        student_total_weight[student.id] = skill_sum + project_quiz_total(project_id, student.id)
+
     target_size = project.team_size
-    
-    competent_roster = db.session.query(User.id, db.func.sum(StudentCompetency.score).label('total_weight')).join(
-        StudentCompetency, User.id == StudentCompetency.user_id
-    ).filter(
-        StudentCompetency.project_id == project_id,
-        User.id.in_(assigned_student_query(project_id).with_entities(User.id))
-    ).group_by(User.id).all()
-    weighted_roster = []
-    for student_id, skill_weight in competent_roster:
-        weighted_roster.append({
-            "id": student_id,
-            "weight": int(skill_weight or 0) + project_quiz_total(project_id, student_id)
-        })
-    weighted_roster.sort(key=lambda row: row["weight"], reverse=True)
-    
-    if not weighted_roster:
-        return jsonify({"success": False, "message": "Matchmaking halted: No student metrics recorded yet."})
-        
-    TeamAssignment.query.filter_by(project_id=project_id).delete()
-    total_count = len(weighted_roster)
+    total_count = len(students)
     num_teams = max(1, total_count // target_size)
-    teams_accumulator = [[] for _ in range(num_teams)]
-    
-    for rank_idx, student in enumerate(weighted_roster):
-        wave_cycle = rank_idx // num_teams
-        target_bucket = rank_idx % num_teams
-        if wave_cycle % 2 != 0:
-            target_bucket = (num_teams - 1) - target_bucket
-        teams_accumulator[target_bucket].append(student["id"])
-        
-    for team_idx, members in enumerate(teams_accumulator):
+
+    # Round-robin initial assignment
+    sorted_students = sorted(students, key=lambda s: student_total_weight[s.id], reverse=True)
+    teams = [[] for _ in range(num_teams)]
+    for i, student in enumerate(sorted_students):
+        teams[i % num_teams].append(student.id)
+
+    # Cost evaluation function
+    def calculate_penalty(teams_list):
+        penalty = 0.0
+        # 1. Skill coverage penalty: for each team and each required skill, we want at least one member with score >= 5
+        for t_members in teams_list:
+            for skill_id in skill_ids:
+                if t_members:
+                    max_score = max(competency_scores[uid][skill_id] for uid in t_members)
+                else:
+                    max_score = 0
+                if max_score < 5:
+                    penalty += (5 - max_score) * 1000.0 # Heavy penalty for lack of required skill coverage
+
+        # 2. Balance penalty: minimize variance of total weights across teams
+        team_weights = []
+        for t_members in teams_list:
+            team_weights.append(sum(student_total_weight[uid] for uid in t_members))
+
+        if len(team_weights) > 1:
+            mean_weight = sum(team_weights) / len(team_weights)
+            variance = sum((w - mean_weight) ** 2 for w in team_weights) / (len(team_weights) - 1)
+            penalty += variance * 10.0
+
+        return penalty
+
+    # Hill-climbing local optimization search
+    import random
+    current_teams = [list(t) for t in teams]
+    best_teams = [list(t) for t in current_teams]
+    best_penalty = calculate_penalty(current_teams)
+
+    # Run for 5000 iterations to find optimal swaps
+    for _ in range(5000):
+        t1_idx = random.randint(0, num_teams - 1)
+        t2_idx = random.randint(0, num_teams - 1)
+        if t1_idx == t2_idx:
+            continue
+
+        t1 = current_teams[t1_idx]
+        t2 = current_teams[t2_idx]
+        if not t1 or not t2:
+            continue
+
+        m1_idx = random.randint(0, len(t1) - 1)
+        m2_idx = random.randint(0, len(t2) - 1)
+
+        # Try swapping
+        t1[m1_idx], t2[m2_idx] = t2[m2_idx], t1[m1_idx]
+        new_penalty = calculate_penalty(current_teams)
+
+        if new_penalty <= best_penalty:
+            best_penalty = new_penalty
+            best_teams = [list(t) for t in current_teams]
+        else:
+            # Revert swap
+            t1[m1_idx], t2[m2_idx] = t2[m2_idx], t1[m1_idx]
+
+    # Save assignments to database
+    TeamAssignment.query.filter_by(project_id=project_id).delete()
+    for team_idx, members in enumerate(best_teams):
         t_num = team_idx + 1
         for m_id in members:
             db.session.add(TeamAssignment(project_id=project_id, student_id=m_id, team_number=t_num))
-            
+
     db.session.commit()
     return jsonify({"success": True, "message": f"Optimization engine complete! Formed {num_teams} balanced clusters."})
 

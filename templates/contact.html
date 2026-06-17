@@ -122,8 +122,8 @@ function updateFields() {
     }
 }
 
-// Simple validation
 document.getElementById("contactForm").addEventListener("submit", function(event) {
+    event.preventDefault();
 
     const userType = document.getElementById("userType").value;
     const name = document.getElementById("name").value.trim();
@@ -133,12 +133,32 @@ document.getElementById("contactForm").addEventListener("submit", function(event
     const message = document.getElementById("message").value.trim();
 
     if (!userType || !name || !className || !rollNo || !subject || !message) {
-        event.preventDefault();
         alert("Please fill all required fields.");
         return;
     }
 
-    alert("Your request has been submitted successfully.");
+    fetch('/api/contact/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            user_type: userType,
+            name: name,
+            class_department: className,
+            roll_faculty_id: rollNo,
+            subject: subject,
+            message: message
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert(data.message || "Request submitted.");
+        if (data.success) {
+            document.getElementById("contactForm").reset();
+        }
+    })
+    .catch(err => {
+        alert("Error submitting request: " + err);
+    });
 });
 </script>
 

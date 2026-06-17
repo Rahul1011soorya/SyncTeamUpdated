@@ -72,7 +72,7 @@
             <div class="checkbox-matrix">
                 {% for skill in skills %}
                 <label class="matrix-cb-label">
-                    <input type="checkbox" class="skill-checkbox" value="{{ skill.skill_name }}">
+                    <input type="checkbox" class="skill-checkbox" value="{{ skill.skill_name }}" onchange="syncQuestionSkillsDropdowns()">
                     {{ skill.skill_name }}
                 </label>
                 {% endfor %}
@@ -82,11 +82,11 @@
                 <button type="button" class="btn primary-btn" onclick="injectCustomSkillToForm()">Add</button>
             </div>
 
-            <h3>Flashcards</h3>
+            <h3>MCQ Quiz & Assessment Builder</h3>
             <div id="flashcard-builder" class="flashcard-builder"></div>
-            <button type="button" class="btn secondary-btn" onclick="addFlashcardRow()">Add flashcard</button>
+            <button type="button" class="btn secondary-btn" onclick="addFlashcardRow()">Add quiz question</button>
 
-            <button class="btn success-btn full-btn deploy-submit" onclick="compileAndPublishProject()">Deploy to selected cohorts</button>
+            <button class="btn success-btn full-btn deploy-submit" style="margin-top: 2rem;" onclick="compileAndPublishProject()">Deploy to selected cohorts</button>
         </div>
     </section>
 </div>
